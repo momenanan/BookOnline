@@ -1,0 +1,24 @@
+services:
+  catalog:
+    build:
+      context: .
+      dockerfile: src/main/java/catalog/Dockerfile
+    image: catalog-service
+    ports:
+      - "8081:8081"
+
+  order:
+    build:
+      context: .
+      dockerfile: src/main/java/order/Dockerfile
+    image: order-service
+    ports:
+      - "8082:8082"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: src/main/java/frontend/Dockerfile
+    image: frontend-service
+    ports:
+      - "8080:8080"
