@@ -2,7 +2,6 @@ package order;
 
 import static spark.Spark.*;
 import models.Order;
-
 import java.io.*;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -14,66 +13,101 @@ import java.util.*;
 import com.google.gson.Gson;
 import models.Book;
 
-
 public class OrderService {
-    private static final String ORDERS_CSV = "src/main/resources/orders.csv";
+    private static final String ORDERS_CSV = "/app/orders.csv"; 
+    private static final String[] catalogReplicas = {"http://catalog1:4567", "http://catalog2:4570"};
+    private static final String[] orderReplicas = {"http://order1:4568", "http://order2:4571"};
     private static List<Order> orders = new ArrayList<>();
     private static HttpClient client = HttpClient.newHttpClient();
 
     public static void main(String[] args) {
-        port(4568);
+        port(4568); // Adjust for each replica
         loadOrders();
 
-        // Handle purchase request
         post("/purchase/:id", (req, res) -> {
             int bookId = Integer.parseInt(req.params(":id"));
             boolean success = placeOrder(bookId);
+            if (success) invalidateCache("info:" + bookId);
             res.type("text/plain");
             return success ? "Order placed" : "Out of stock";
+        });
+
+        post("/recordOrder", (req, res) -> {
+            Order order = new Gson().fromJson(req.body(), Order.class);
+            orders.add(order);
+            saveOrders();
+            return "Order recorded";
         });
     }
 
     private static boolean placeOrder(int bookId) {
         try {
-            // Step 1: Check stock from CatalogService
             HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:4567/info/" + bookId))
+                .uri(URI.create(catalogReplicas[0] + "/info/" + bookId)) // Query one replica
                 .build();
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                // Parse JSON response to get quantity
                 Book book = new Gson().fromJson(response.body(), Book.class);
                 if (book.getQuantity() > 0) {
-                    // Step 2: Update stock in CatalogService
-                    HttpRequest updateRequest = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:4567/update/" + bookId + "?quantity=" + (book.getQuantity() - 1)))
-                        .PUT(HttpRequest.BodyPublishers.noBody())
-                        .build();
-                    client.send(updateRequest, HttpResponse.BodyHandlers.ofString());
+                    // Update stock on all catalog replicas
+                    for (String catalogReplica : catalogReplicas) {
+                        HttpRequest updateRequest = HttpRequest.newBuilder()
+                            .uri(URI.create(catalogReplica + "/update/" + bookId + "?quantity=" + (book.getQuantity() - 1)))
+                            .PUT(HttpRequest.BodyPublishers.noBody())
+                            .build();
+                        client.send(updateRequest, HttpResponse.BodyHandlers.ofString());
+                    }
 
-                    // Step 3: Record the order if successful
+                    // Record the order locally
                     Order order = new Order(orders.size() + 1, bookId, 1, LocalDate.now().toString());
                     orders.add(order);
                     saveOrders();
+
+                    // Propagate the order to all replicas
+                    propagateOrderToReplicas(order);
                     return true;
                 }
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return false;  // Out of stock or error
+        return false;
+    }
+
+    private static void propagateOrderToReplicas(Order order) {
+        for (String orderReplica : orderReplicas) {
+            try {
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(orderReplica + "/recordOrder"))
+                    .POST(HttpRequest.BodyPublishers.ofString(new Gson().toJson(order)))
+                    .header("Content-Type", "application/json")
+                    .build();
+                client.send(request, HttpResponse.BodyHandlers.ofString());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static void invalidateCache(String cacheKey) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://frontend:4569/cache/invalidate?key=" + cacheKey))
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+            client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private static void loadOrders() {
         try (BufferedReader reader = Files.newBufferedReader(Paths.get(ORDERS_CSV))) {
             String line;
-            reader.readLine();  // Skip header
+            reader.readLine(); // Skip header
             while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;  // Skip empty lines
                 String[] parts = line.split(",");
-                if (parts.length < 4) continue;  // Skip incomplete lines
-
                 int orderId = Integer.parseInt(parts[0]);
                 int bookId = Integer.parseInt(parts[1]);
                 int quantity = Integer.parseInt(parts[2]);
@@ -82,8 +116,6 @@ public class OrderService {
             }
         } catch (IOException e) {
             e.printStackTrace();
-        } catch (NumberFormatException e) {
-            System.err.println("Error parsing integer in orders file: " + e.getMessage());
         }
     }
 
