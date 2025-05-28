@@ -9,10 +9,10 @@ import java.nio.file.*;
 
 public class CatalogService {
     private static Map<Integer, Book> catalog = new HashMap<>();
-    private static final String CSV_PATH = "src/main/resources/catalog.csv";
+    private static final String CSV_PATH = "/app/catalog.csv"; 
 
     public static void main(String[] args) {
-        port(4567);
+        port(4567); 
         loadCatalog();
 
         get("/search/:topic", (req, res) -> {
@@ -29,7 +29,6 @@ public class CatalogService {
             return new Gson().toJson(bookInfo);
         });
 
-        // Endpoint to update book stock quantity
         put("/update/:id", (req, res) -> {
             int id = Integer.parseInt(req.params(":id"));
             int quantity = Integer.parseInt(req.queryParams("quantity"));
@@ -44,29 +43,13 @@ public class CatalogService {
             String line;
             reader.readLine(); // Skip header line
             while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;
                 String[] parts = line.split(",");
-
-                if (parts.length < 5) {
-                    System.err.println("Skipping malformed line: " + line);
-                    continue;
-                }
-
-                try {
-                    int id = !parts[0].trim().isEmpty() ? Integer.parseInt(parts[0].trim()) : -1;
-                    String title = parts[1].trim();
-                    String topic = parts[2].trim();
-                    int quantity = !parts[3].trim().isEmpty() ? Integer.parseInt(parts[3].trim()) : 0;
-                    double price = !parts[4].trim().isEmpty() ? Double.parseDouble(parts[4].trim()) : 0.0;
-
-                    if (id != -1 && quantity >= 0) {
-                        catalog.put(id, new Book(id, title, topic, quantity, price));
-                    } else {
-                        System.err.println("Skipping line due to invalid id or quantity: " + line);
-                    }
-                } catch (NumberFormatException e) {
-                    System.err.println("Skipping line due to number format issue: " + line);
-                }
+                int id = Integer.parseInt(parts[0].trim());
+                String title = parts[1].trim();
+                String topic = parts[2].trim();
+                int quantity = Integer.parseInt(parts[3].trim());
+                double price = Double.parseDouble(parts[4].trim());
+                catalog.put(id, new Book(id, title, topic, quantity, price));
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -90,11 +73,9 @@ public class CatalogService {
         Book book = catalog.get(id);
         if (book != null) {
             Map<String, Object> bookInfo = new HashMap<>();
-
             bookInfo.put("title", book.getTitle());
             bookInfo.put("quantity", book.getQuantity());
             bookInfo.put("price", book.getPrice());
-
             return bookInfo;
         }
         return Collections.emptyMap();
@@ -119,3 +100,4 @@ public class CatalogService {
         }
     }
 }
+
