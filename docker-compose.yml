@@ -1,19 +1,36 @@
+version: '3'
 services:
-  catalog:
+  catalog1:
     build:
       context: .
       dockerfile: src/main/java/catalog/Dockerfile
-    image: catalog-service
+    image: catalog1-service
     ports:
-      - "8081:8081"
+      - "4567:4567"
 
-  order:
+  catalog2:
+    build:
+      context: .
+      dockerfile: src/main/java/catalog/Dockerfile2
+    image: catalog2-service
+    ports:
+      - "4570:4570"
+
+  order1:
     build:
       context: .
       dockerfile: src/main/java/order/Dockerfile
-    image: order-service
+    image: order1-service
     ports:
-      - "8082:8082"
+      - "4568:4568"
+
+  order2:
+    build:
+      context: .
+      dockerfile: src/main/java/order/Dockerfile2
+    image: order2-service
+    ports:
+      - "4571:4571"
 
   frontend:
     build:
@@ -21,4 +38,4 @@ services:
       dockerfile: src/main/java/frontend/Dockerfile
     image: frontend-service
     ports:
-      - "8080:8080"
+      - "4569:4569"
