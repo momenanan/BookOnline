@@ -7,6 +7,8 @@ services:
     image: catalog1-service
     ports:
       - "4567:4567"
+    networks:
+      - bookstore
 
   catalog2:
     build:
@@ -15,6 +17,8 @@ services:
     image: catalog2-service
     ports:
       - "4570:4570"
+    networks:
+      - bookstore
 
   order1:
     build:
@@ -23,6 +27,8 @@ services:
     image: order1-service
     ports:
       - "4568:4568"
+    networks:
+      - bookstore
 
   order2:
     build:
@@ -31,6 +37,8 @@ services:
     image: order2-service
     ports:
       - "4571:4571"
+    networks:
+      - bookstore
 
   frontend:
     build:
@@ -39,3 +47,9 @@ services:
     image: frontend-service
     ports:
       - "4569:4569"
+    networks:
+      - bookstore
+
+networks:
+  bookstore:
+    driver: bridge
