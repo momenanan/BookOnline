@@ -38,11 +38,14 @@
           <target>1.8</target>
         </configuration>
       </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-assembly-plugin</artifactId>
         <version>3.1.0</version>
         <executions>
+
+          <!-- OrderService -->
           <execution>
             <id>make-order-jar</id>
             <phase>package</phase>
@@ -62,6 +65,8 @@
               </descriptorRefs>
             </configuration>
           </execution>
+
+          <!-- CatalogService -->
           <execution>
             <id>make-catalog-jar</id>
             <phase>package</phase>
@@ -81,6 +86,8 @@
               </descriptorRefs>
             </configuration>
           </execution>
+
+          <!-- FrontEndService -->
           <execution>
             <id>make-frontend-jar</id>
             <phase>package</phase>
@@ -100,6 +107,49 @@
               </descriptorRefs>
             </configuration>
           </execution>
+
+          <!-- CatalogService2 -->
+          <execution>
+            <id>make-catalog2-jar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+            <configuration>
+              <archive>
+                <manifest>
+                  <mainClass>catalog.CatalogService2</mainClass>
+                </manifest>
+              </archive>
+              <finalName>CatalogService2</finalName>
+              <appendAssemblyId>false</appendAssemblyId>
+              <descriptorRefs>
+                <descriptorRef>jar-with-dependencies</descriptorRef>
+              </descriptorRefs>
+            </configuration>
+          </execution>
+
+          <!-- OrderService2 -->
+          <execution>
+            <id>make-order2-jar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+            <configuration>
+              <archive>
+                <manifest>
+                  <mainClass>order.OrderService2</mainClass>
+                </manifest>
+              </archive>
+              <finalName>OrderService2</finalName>
+              <appendAssemblyId>false</appendAssemblyId>
+              <descriptorRefs>
+                <descriptorRef>jar-with-dependencies</descriptorRef>
+              </descriptorRefs>
+            </configuration>
+          </execution>
+
         </executions>
       </plugin>
     </plugins>
