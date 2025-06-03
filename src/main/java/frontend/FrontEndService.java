@@ -3,6 +3,8 @@ package frontend;
 import static spark.Spark.*;
 import java.net.http.*;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,32 +22,63 @@ public class FrontEndService {
 
         get("/search/:topic", (req, res) -> {
             String topic = req.params(":topic");
+            String encodedTopic = URLEncoder.encode(topic, StandardCharsets.UTF_8);
+            String fixedEncodedTopic = encodedTopic.replace("+", "%20"); // ✅ الأهم
             String cacheKey = "search:" + topic;
-            if (cache.containsKey(cacheKey)) {
-                return cache.get(cacheKey);
+
+            try {
+                if (cache.containsKey(cacheKey)) {
+                    return cache.get(cacheKey);
+                }
+
+                HttpResponse<String> response = sendRoundRobinRequest(catalogReplicas, "/search/" + fixedEncodedTopic, catalogCounter);
+
+                if (!response.body().equals("[]")) {
+                    cache.put(cacheKey, response.body());
+                }
+
+                return response.body();
+            } catch (Exception e) {
+                res.status(500);
+                return "Internal Server Error: " + e.getMessage();
             }
-            HttpResponse<String> response = sendRoundRobinRequest(catalogReplicas, "/search/" + topic, catalogCounter);
-            cache.put(cacheKey, response.body());
-            return response.body();
         });
 
         get("/info/:id", (req, res) -> {
             int id = Integer.parseInt(req.params(":id"));
             String cacheKey = "info:" + id;
-            if (cache.containsKey(cacheKey)) {
-                return cache.get(cacheKey);
+
+            try {
+                if (cache.containsKey(cacheKey)) {
+                    return cache.get(cacheKey);
+                }
+
+                HttpResponse<String> response = sendRoundRobinRequest(catalogReplicas, "/info/" + id, catalogCounter);
+
+                if (!response.body().isEmpty()) {
+                    cache.put(cacheKey, response.body());
+                }
+
+                return response.body();
+            } catch (Exception e) {
+                res.status(500);
+                return "Internal Server Error: " + e.getMessage();
             }
-            HttpResponse<String> response = sendRoundRobinRequest(catalogReplicas, "/info/" + id, catalogCounter);
-            cache.put(cacheKey, response.body());
-            return response.body();
         });
 
         post("/purchase/:id", (req, res) -> {
+            System.out.println(">>> Received /purchase/:id request");
             int id = Integer.parseInt(req.params(":id"));
-            HttpResponse<String> response = sendRoundRobinRequest(orderReplicas, "/purchase/" + id, orderCounter);
-            cache.remove("info:" + id);
-            return response.body();
+            try {
+                HttpResponse<String> response = sendRoundRobinRequest(orderReplicas, "/purchase/" + id, orderCounter);
+                cache.remove("info:" + id);
+                return response.body();
+            } catch (Exception e) {
+                res.status(500);
+                return "Internal Server Error: " + e.getMessage();
+            }
         });
+
 
         post("/cache/invalidate", (req, res) -> {
             String key = req.queryParams("key");
@@ -55,9 +88,24 @@ public class FrontEndService {
     }
 
     private static HttpResponse<String> sendRoundRobinRequest(String[] replicas, String path, AtomicInteger counter) throws Exception {
-        String url = replicas[counter.getAndIncrement() % replicas.length] + path;
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
-        return client.send(request, HttpResponse.BodyHandlers.ofString());
+        int attempts = 0;
+        Exception lastException = null;
+
+        while (attempts < replicas.length) {
+            String replica = replicas[counter.getAndIncrement() % replicas.length];
+            String url = replica + path;
+
+            try {
+                System.out.println("Trying: " + url);
+                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
+                return client.send(request, HttpResponse.BodyHandlers.ofString());
+            } catch (Exception e) {
+                System.err.println("Failed to reach: " + url + " -> " + e.getMessage());
+                lastException = e;
+                attempts++;
+            }
+        }
+
+        throw lastException != null ? lastException : new Exception("All replicas failed.");
     }
 }
-
