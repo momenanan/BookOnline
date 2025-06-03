@@ -7,6 +7,9 @@ WORKDIR /app
 # Copy the compiled .jar file into the container
 COPY target/OrderService.jar OrderService.jar
 
+COPY src/main/resources/orders.csv /app/orders.csv
+
+
 # Expose the port the service listens on
 EXPOSE 4568
 
