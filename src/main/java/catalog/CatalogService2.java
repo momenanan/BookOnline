@@ -58,8 +58,10 @@ public class CatalogService2 {
 
     private static List<Map<String, Object>> searchByTopic(String topic) {
         List<Map<String, Object>> results = new ArrayList<>();
+        String cleanTopic = topic.trim().toLowerCase();
+
         for (Book book : catalog.values()) {
-            if (book.getTopic().equalsIgnoreCase(topic)) {
+            if (book.getTopic().trim().toLowerCase().equals(cleanTopic)) {
                 Map<String, Object> bookData = new HashMap<>();
                 bookData.put("id", book.getId());
                 bookData.put("title", book.getTitle());
@@ -68,6 +70,7 @@ public class CatalogService2 {
         }
         return results;
     }
+
 
     private static Map<String, Object> getBookInfo(int id) {
         Book book = catalog.get(id);
