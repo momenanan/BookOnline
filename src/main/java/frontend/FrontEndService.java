@@ -23,7 +23,7 @@ public class FrontEndService {
         get("/search/:topic", (req, res) -> {
             String topic = req.params(":topic");
             String encodedTopic = URLEncoder.encode(topic, StandardCharsets.UTF_8);
-            String fixedEncodedTopic = encodedTopic.replace("+", "%20"); // ✅ الأهم
+            String fixedEncodedTopic = encodedTopic.replace("+", "%20");
             String cacheKey = "search:" + topic;
 
             try {
@@ -68,9 +68,10 @@ public class FrontEndService {
 
         post("/purchase/:id", (req, res) -> {
             System.out.println(">>> Received /purchase/:id request");
+            req.body();
             int id = Integer.parseInt(req.params(":id"));
             try {
-                HttpResponse<String> response = sendRoundRobinRequest(orderReplicas, "/purchase/" + id, orderCounter);
+                HttpResponse<String> response = sendRoundRobinPostRequest(orderReplicas, "/purchase/" + id, orderCounter);
                 cache.remove("info:" + id);
                 return response.body();
             } catch (Exception e) {
@@ -79,12 +80,13 @@ public class FrontEndService {
             }
         });
 
-
         post("/cache/invalidate", (req, res) -> {
             String key = req.queryParams("key");
             cache.remove(key);
             return "Cache invalidated for key: " + key;
         });
+
+        System.out.println(">>> All routes registered: /search/:topic, /info/:id, /purchase/:id, /cache/invalidate");
     }
 
     private static HttpResponse<String> sendRoundRobinRequest(String[] replicas, String path, AtomicInteger counter) throws Exception {
@@ -96,11 +98,39 @@ public class FrontEndService {
             String url = replica + path;
 
             try {
-                System.out.println("Trying: " + url);
-                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
+                System.out.println("Trying GET: " + url);
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .GET()
+                    .build();
                 return client.send(request, HttpResponse.BodyHandlers.ofString());
             } catch (Exception e) {
-                System.err.println("Failed to reach: " + url + " -> " + e.getMessage());
+                System.err.println("Failed to reach GET: " + url + " -> " + e.getMessage());
+                lastException = e;
+                attempts++;
+            }
+        }
+
+        throw lastException != null ? lastException : new Exception("All replicas failed.");
+    }
+
+    private static HttpResponse<String> sendRoundRobinPostRequest(String[] replicas, String path, AtomicInteger counter) throws Exception {
+        int attempts = 0;
+        Exception lastException = null;
+
+        while (attempts < replicas.length) {
+            String replica = replicas[counter.getAndIncrement() % replicas.length];
+            String url = replica + path;
+
+            try {
+                System.out.println("Trying POST: " + url);
+                HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .POST(HttpRequest.BodyPublishers.noBody()) // POST بدون body
+                    .build();
+                return client.send(request, HttpResponse.BodyHandlers.ofString());
+            } catch (Exception e) {
+                System.err.println("Failed to reach POST: " + url + " -> " + e.getMessage());
                 lastException = e;
                 attempts++;
             }
